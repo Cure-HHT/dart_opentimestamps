@@ -1,42 +1,79 @@
-/// Example: Create a timestamp with OpenTimestamps
-import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import 'package:open_timestamps/open_timestamps.dart';
 
-Future<void> main() async {
-  print('OpenTimestamps Example - Creating Timestamp\n');
+void main() async {
+  print('OpenTimestamps Dart Example\n');
 
-  // Create test file
-  final file = File('example_data.txt');
-  if (!await file.exists()) {
-    await file.writeAsString('Hello, OpenTimestamps!');
-  }
+  // Example 1: Create a timestamp from bytes
+  final message = 'Hello World!\n';
+  final messageBytes = Uint8List.fromList(utf8.encode(message));
 
-  // Hash the file
-  final data = await file.readAsBytes();
-  final hash = sha256.convert(data).bytes;
+  final detached = DetachedTimestampFile.fromBytes(messageBytes);
+  
+  print('--- File Information ---');
+  print(detached.info());
 
-  print('File: ${file.path}');
-  print('SHA-256: ${_toHex(hash)}\n');
+  // Example 2: Create a timestamp from a pre-computed hash
+  final hashHex = '03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340';
+  final hash = Uint8List.fromList(
+    List.generate(
+      hashHex.length ~/ 2,
+      (i) => int.parse(hashHex.substring(i * 2, i * 2 + 2), radix: 16),
+    ),
+  );
 
-  try {
-    // Create timestamp (currently unimplemented)
-    final client = OpenTimestampsClient();
-    final proof = await client.stamp(Uint8List.fromList(hash));
+  final detachedFromHash = DetachedTimestampFile.fromHash(hash);
+  
+  print('\n--- From Hash ---');
+  print(detachedFromHash.info());
 
-    // Save proof
-    final proofFile = File('${file.path}.ots');
-    await proofFile.writeAsBytes(proof);
+  // Example 3: Build a timestamp tree manually
+  print('\n--- Building Timestamp Tree ---');
+  
+  final timestamp = detached.timestamp;
+  
+  // Add a nonce (random bytes appended for privacy)
+  final nonce = Uint8List.fromList([
+    0xc0, 0x41, 0x58, 0xb1, 0x83, 0xa3, 0x78, 0xf3,
+    0xd0, 0x51, 0xd5, 0x59, 0x79, 0xa9, 0x18, 0xd8,
+  ]);
+  
+  final nonceAppended = timestamp.add(OpAppend(nonce));
+  final sha256After = nonceAppended.add(const OpSHA256());
+  
+  // Add a pending attestation
+  sha256After.addAttestation(
+    const PendingAttestation('https://alice.btc.calendar.opentimestamps.org'),
+  );
+  
+  print('Timestamp with nonce and attestation:');
+  print(timestamp.strTree());
 
-    print('✓ Timestamp created!');
-    print('  Proof: ${proofFile.path}');
-    print('\nWait ~60 min for Bitcoin confirmation.');
-  } on UnimplementedError {
-    print('⚠ Implementation in progress!');
-    print('  This is the project skeleton.');
-  }
+  // Example 4: Serialize to OTS format
+  print('\n--- Serialization ---');
+  final otsBytes = detached.serialize();
+  print('OTS file size: ${otsBytes.length} bytes');
+  print('First 32 bytes (hex): ${otsBytes.take(32).map((b) => b.toRadixString(16).padLeft(2, '0')).join()}');
+
+  print('\n--- Operations Demo ---');
+  
+  // Demonstrate operation application
+  final msg = Uint8List.fromList([0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
+  
+  print('Original: ${String.fromCharCodes(msg)}');
+  
+  final appendOp = OpAppend(Uint8List.fromList([0x21])); // "!"
+  final appended = appendOp.apply(msg);
+  print('After append: ${String.fromCharCodes(appended)}');
+  
+  final prependOp = OpPrepend(Uint8List.fromList([0x3e, 0x20])); // "> "
+  final prepended = prependOp.apply(msg);
+  print('After prepend: ${String.fromCharCodes(prepended)}');
+  
+  final sha256Op = const OpSHA256();
+  final hashed = sha256Op.apply(msg);
+  print('After SHA256: ${hashed.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}');
+
+  print('\n✓ Example completed successfully!');
 }
-
-String _toHex(List<int> bytes) =>
-    bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

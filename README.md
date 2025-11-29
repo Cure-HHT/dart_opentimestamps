@@ -7,13 +7,13 @@ A pure Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) 
 
 ## What is OpenTimestamps?
 
-OpenTimestamps proves data existed at a specific point in time using the Bitcoin blockchain. Unlike traditional timestamping authorities (TSAs), OpenTimestamps provides:
+OpenTimestamps proves data existed at a specific point in time using the Bitcoin blockchain. 
+Unlike traditional timestamping authorities (TSAs), OpenTimestamps provides:
 
 - **$5-20B attack cost** vs ~$100K for traditional TSAs
 - **Zero cost** - Free calendar servers aggregate timestamps  
 - **Mathematically impossible backdating** - Protected by Bitcoin's proof-of-work
 - **No single point of failure** - Distributed verification
-- **16 years, zero breaches** vs DigiNotar, Comodo, NIC India compromises
 
 ## Features
 
@@ -86,7 +86,7 @@ void main() async {
 
 ## Contributing
 
-This is part of the [Dartastic.io](https://dartastic.io) ecosystem. Contributions welcome!
+Contributions welcome!
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -97,4 +97,4 @@ Apache License 2.0 - See [LICENSE](LICENSE)
 ## Credits
 
 Based on [OpenTimestamps](https://opentimestamps.org/) specification.  
-Maintained by [Mindful Software LLC](https://mindfulsoftware.com).
+Maintained by [The Cure HHT Foundation](https://curehht.org/).
