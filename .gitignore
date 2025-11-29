@@ -1,0 +1,25 @@
+# Files and directories created by pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.run/
+
+# Coverage
+coverage/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+.test_coverage.dart
+test/.test_coverage.dart
