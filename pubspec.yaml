@@ -1,9 +1,9 @@
 name: open_timestamps
 description: Dart implementation of the OpenTimestamps protocol for Bitcoin blockchain timestamping
 version: 0.1.0
-repository: https://github.com/MindfulSoftwareLLC/open_timestamps.git
+repository: https://github.com/Cure-HHT/dart_opentimestamps.git
 homepage: https://dartastic.io
-issue_tracker: https://github.com/MindfulSoftwareLLC/open_timestamps/issues
+issue_tracker: https://github.com/Cure-HHT/dart_opentimestamps/issues
 
 environment:
   sdk: ^3.0.0
