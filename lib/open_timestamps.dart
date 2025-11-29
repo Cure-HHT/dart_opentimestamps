@@ -12,6 +12,9 @@ export 'src/core/timestamp.dart';
 export 'src/client/opentimestamps_client.dart';
 export 'src/detached_timestamp_file.dart';
 
+// Deserialization
+export 'src/deserialization/stream_deserialization_context.dart';
+
 // Verification
 export 'src/verification/verification_result.dart';
 

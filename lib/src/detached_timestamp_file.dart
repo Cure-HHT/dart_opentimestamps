@@ -3,8 +3,10 @@ library;
 
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'core/attestation.dart';
 import 'core/operations.dart';
 import 'core/timestamp.dart';
+import 'deserialization/stream_deserialization_context.dart';
 
 /// A file with a detached timestamp
 /// 
@@ -30,6 +32,82 @@ class DetachedTimestampFile {
   factory DetachedTimestampFile.fromHash(Uint8List hash) {
     final timestamp = Timestamp(hash);
     return DetachedTimestampFile(const OpSHA256(), timestamp);
+  }
+
+  /// Deserializes a DetachedTimestampFile from OTS file bytes
+  factory DetachedTimestampFile.deserialize(Uint8List otsBytes) {
+    final ctx = StreamDeserializationContext(otsBytes);
+
+    // Read and verify magic header
+    ctx.assertMagic([0x00]);
+    ctx.assertMagic('OpenTimestamps'.codeUnits);
+    ctx.assertMagic([0x00]);
+    ctx.assertMagic('Proof'.codeUnits);
+    ctx.assertMagic([0x00]);
+    
+    // Read version
+    ctx.assertMagic([0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94]);
+
+    // Read file hash operation
+    final fileHashOpTag = ctx.readByte();
+    final fileHashOp = ctx.deserializeOperation(fileHashOpTag);
+
+    // Read file hash
+    final fileHashLength = ctx.readByte();
+    final fileHash = ctx.readBytes(fileHashLength);
+
+    // Create timestamp and deserialize the tree
+    final timestamp = Timestamp(fileHash);
+    _deserializeTimestamp(ctx, timestamp);
+
+    return DetachedTimestampFile(fileHashOp, timestamp);
+  }
+
+  /// Deserializes a timestamp tree from the stream
+  static void _deserializeTimestamp(
+    StreamDeserializationContext ctx,
+    Timestamp timestamp,
+  ) {
+    while (!ctx.isEOF) {
+      final tag = ctx.readByte();
+
+      if (tag == 0x00) {
+        // Attestation
+        final attestationTag = ctx.readByte();
+        final payload = ctx.readVarbytes(maxLength: 8192);
+
+        final attestation = _deserializeAttestation(attestationTag, payload);
+        timestamp.addAttestation(attestation);
+      } else if (tag == 0xff) {
+        // Fork point - multiple operations follow
+        // The next tag will be an operation, so we continue the loop
+        continue;
+      } else {
+        // Operation
+        final op = ctx.deserializeOperation(tag);
+        final newTimestamp = timestamp.add(op);
+        _deserializeTimestamp(ctx, newTimestamp);
+        return; // Operations create new branches
+      }
+    }
+  }
+
+  /// Deserializes an attestation from tag and payload
+  static Attestation _deserializeAttestation(int tag, Uint8List payload) {
+    switch (tag) {
+      case 0x83: // Pending attestation
+        final uri = String.fromCharCodes(payload);
+        return PendingAttestation(uri);
+
+      case 0x05: // Bitcoin block header
+        // Decode varint from payload
+        final ctx = StreamDeserializationContext(payload);
+        final height = ctx.readVarint();
+        return BitcoinBlockHeaderAttestation(height);
+
+      default:
+        return UnknownAttestation(tag, payload);
+    }
   }
 
   /// The hash operation used on the file
@@ -67,7 +145,7 @@ class DetachedTimestampFile {
     buffer.add(hashBytes.length);
     buffer.addAll(hashBytes);
 
-    // Timestamp tree (to be implemented)
+    // Timestamp tree
     buffer.addAll(_serializeTimestamp(timestamp));
 
     return Uint8List.fromList(buffer);
