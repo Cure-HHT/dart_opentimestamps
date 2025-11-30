@@ -32,6 +32,14 @@ Perfect for:
 - Audit trail compliance
 - Digital evidence preservation
 
+
+## How It Works
+
+1. **Submit** - Hash sent to OpenTimestamps calendars
+2. **Aggregate** - Calendars combine hashes into Merkle tree
+3. **Commit** - Root hash embedded in Bitcoin transaction
+4. **Confirm** - Bitcoin network confirms (~60 minutes)
+5. **Verify** - Anyone independently verifies against blockchain
 ## Quick Start
 
 ### Installation
