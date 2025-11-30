@@ -83,7 +83,7 @@ class StreamDeserializationContext {
   /// Asserts that the next bytes match the expected value
   void assertMagic(List<int> expected) {
     final actual = readBytes(expected.length);
-    
+
     for (var i = 0; i < expected.length; i++) {
       if (actual[i] != expected[i]) {
         throw FormatException(

@@ -6,7 +6,7 @@ import 'attestation.dart';
 import 'operations.dart';
 
 /// Proof that one or more attestations commit to a message
-/// 
+///
 /// The proof is in the form of a tree, with each node being a message, and the
 /// edges being operations acting on those messages. The leaves of the tree are
 /// attestations that attest to the time that messages in the tree existed prior.
@@ -25,7 +25,7 @@ class Timestamp {
   final Map<Operation, Timestamp> ops = {};
 
   /// Adds an operation to this timestamp
-  /// 
+  ///
   /// Returns the timestamp produced by the operation
   Timestamp add(Operation op) {
     // Check if this operation already exists
@@ -54,7 +54,7 @@ class Timestamp {
   /// Returns all attestations in this timestamp tree
   List<Attestation> getAllAttestations() {
     final allAttestations = <Attestation>[];
-    
+
     // Add attestations from this timestamp
     allAttestations.addAll(attestations);
 
