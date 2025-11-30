@@ -171,7 +171,7 @@ You only trust:
 
 ### Recommended for Clinical Trials
 
-Ideal for **HHT stem cell clinical trial data** because:
+Ideal for **clinical trial data** because:
 - Regulatory compliant - Meets FDA 21 CFR Part 11 audit trail requirements
 - Long-term integrity - Data provably existed before analysis
 - Independent verification - Anyone can verify without special access
