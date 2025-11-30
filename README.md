@@ -129,8 +129,6 @@ final confirmed = BitcoinBlockHeaderAttestation(515107);
 
 ## Architecture
 
-This implementation follows the [Java OpenTimestamps](https://github.com/opentimestamps/java-opentimestamps) reference implementation, providing:
-
 - **Binary format compatibility** - Interoperable with Python, JavaScript, and Java implementations
 - **Merkle tree operations** - Efficient batching of multiple timestamps
 - **Modular design** - Clean separation of operations, attestations, and calendar communication
@@ -228,3 +226,7 @@ Apache 2.0 - See [LICENSE](LICENSE) file.
 - [Protocol Specification](https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md)
 - [Python Reference Implementation](https://github.com/opentimestamps/python-opentimestamps)
 - [Cure HHT](https://curehht.org/) - Hereditary Hemorrhagic Telangiectasia research
+
+## Contact
+
+For questions or contributions, contact [mike.bushe@anspar.org](mailto:mike.bushe@anspar.org)
