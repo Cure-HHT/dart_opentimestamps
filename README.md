@@ -42,6 +42,37 @@ Perfect for:
 5. **Verify** - Anyone independently verifies against blockchain
 ## Quick Start
 
+
+## Configuration
+
+### Calendar Servers
+
+By default, the client uses these public OpenTimestamps calendar servers:
+- https://a.pool.opentimestamps.org
+- https://b.pool.opentimestamps.org
+- https://a.pool.eternitywall.com
+
+You can configure custom calendar servers in three ways:
+
+**1. Constructor parameter (highest priority):**
+```dart
+final client = OpenTimestampsClient(
+  calendarUrls: ["https://my-calendar.example.com"],
+);
+```
+
+**2. Environment variable:**
+```bash
+# For Flutter apps
+flutter run --dart-define=OPENTIMESTAMP_CALENDAR_URLS=https://cal1.example.com,https://cal2.example.com
+
+# For Dart apps
+dart run --define=OPENTIMESTAMP_CALENDAR_URLS=https://cal1.example.com,https://cal2.example.com
+```
+
+**3. Default calendars (fallback):**
+If neither constructor parameter nor environment variable is set, the default public calendars are used.
+
 ### Installation
 
 Add to your `pubspec.yaml`:
