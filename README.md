@@ -13,7 +13,7 @@ A pure Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) 
 - ✅ **Bitcoin attestations** - Support for Bitcoin block header attestations  
 - ✅ **Type-safe API** - Leverages Dart's strong typing for reliability
 - ✅ **Pure Dart** - Works on all Dart platforms (Flutter, Web, Server, CLI)
-- ✅ **Production tested** - Comprehensive test suite with round-trip verification
+- ✅ **Well-tested** - Comprehensive test suite with round-trip verification
 
 ## Why OpenTimestamps?
 
