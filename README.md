@@ -1,6 +1,6 @@
 # OpenTimestamps for Dart
 
-A production-ready Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) protocol for blockchain timestamping.
+A pure Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) protocol for creating and verifying Bitcoin blockchain-based timestamps.
 
 [![Dart](https://img.shields.io/badge/Dart-3.0%2B-blue)](https://dart.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
