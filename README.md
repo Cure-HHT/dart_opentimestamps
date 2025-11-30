@@ -266,6 +266,44 @@ Apache 2.0 - See [LICENSE](LICENSE) file.
 - [Python Reference Implementation](https://github.com/opentimestamps/python-opentimestamps)
 - [Cure HHT](https://curehht.org/) - Hereditary Hemorrhagic Telangiectasia research
 
+
+## Development
+
+### Git Hooks
+
+This project includes git hooks to maintain code quality:
+
+- **pre-commit**: Formats code with `dart format` and runs `dart analyze`
+- **pre-push**: Runs all tests before pushing
+
+Install the hooks:
+
+```bash
+./hooks/install.sh
+```
+
+See [hooks/README.md](hooks/README.md) for more details.
+
+### Running Tests
+
+```bash
+# Run all tests
+./tool/test.sh
+
+# Run with custom concurrency
+./tool/test.sh --concurrency 4
+```
+
+### Coverage
+
+```bash
+# Generate coverage report
+./tool/coverage.sh
+
+# View report
+open coverage/html/index.html
+```
+
 ## Contact
 
 For questions or contributions, contact [mike.bushe@anspar.org](mailto:mike.bushe@anspar.org)

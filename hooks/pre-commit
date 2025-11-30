@@ -1,0 +1,31 @@
+#!/bin/bash
+# Pre-commit hook: Format code and analyze
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Get list of staged Dart files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.dart$' || true)
+
+if [ -z "$STAGED_FILES" ]; then
+  echo "No Dart files to check"
+  exit 0
+fi
+
+echo "Formatting Dart files..."
+dart format $STAGED_FILES
+
+# Re-stage formatted files
+git add $STAGED_FILES
+
+echo "Running dart analyze..."
+dart analyze --fatal-infos
+
+if [ $? -ne 0 ]; then
+  echo "❌ dart analyze failed. Please fix the issues before committing."
+  exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"
+exit 0
