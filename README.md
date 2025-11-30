@@ -4,6 +4,8 @@ A pure Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) 
 
 [![Dart](https://img.shields.io/badge/Dart-3.0%2B-blue)](https://dart.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://cure-hht.github.io/dart_opentimestamps/)
+[![codecov](https://codecov.io/gh/Cure-HHT/dart_opentimestamps/branch/main/graph/badge.svg)](https://codecov.io/gh/Cure-HHT/dart_opentimestamps)
 
 ## Features
 
@@ -13,7 +15,7 @@ A pure Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) 
 - ✅ **Bitcoin attestations** - Support for Bitcoin block header attestations  
 - ✅ **Type-safe API** - Leverages Dart's strong typing for reliability
 - ✅ **Pure Dart** - Works on all Dart platforms (Flutter, Web, Server, CLI)
-- ✅ **Well-tested** - Comprehensive test suite with round-trip verification
+- ✅ **100% Test Coverage** - Comprehensive test suite with round-trip verification
 
 ## Why OpenTimestamps?
 
@@ -295,6 +297,12 @@ See [hooks/README.md](hooks/README.md) for more details.
 ```
 
 ### Coverage
+
+This project maintains **100% test coverage**. View the latest coverage report:
+- **[Coverage Report](https://cure-hht.github.io/dart_opentimestamps/)** - Detailed line-by-line coverage
+- **[Codecov Dashboard](https://codecov.io/gh/Cure-HHT/dart_opentimestamps)** - Coverage trends and analytics
+
+To generate a local coverage report:
 
 ```bash
 # Generate coverage report
