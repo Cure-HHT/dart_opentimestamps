@@ -1,14 +1,16 @@
 /// OpenTimestamps client for calendar operations
 library;
 
+import 'dart:math';
 import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
+
 import '../core/attestation.dart';
 import '../core/operations.dart';
 import '../core/timestamp.dart';
 import '../detached_timestamp_file.dart';
 import '../utils/exceptions.dart';
-import 'dart:math';
 
 /// Client for interacting with OpenTimestamps calendar servers
 class OpenTimestampsClient {
@@ -34,7 +36,7 @@ class OpenTimestampsClient {
   final _random = Random.secure();
 
   /// Stamps a file by submitting it to calendar servers
-  /// 
+  ///
   /// Returns the detached timestamp file with pending attestations.
   /// The timestamp will need to be upgraded later once the calendars
   /// have included it in a Bitcoin block.
@@ -65,7 +67,7 @@ class OpenTimestampsClient {
     }
 
     if (successCount == 0) {
-      throw OpenTimestampsException(
+      throw const OpenTimestampsException(
         'Failed to submit to any calendar servers',
       );
     }
@@ -74,17 +76,20 @@ class OpenTimestampsClient {
   }
 
   /// Submits a hash to a calendar server
-  Future<Uint8List?> _submitToCalendar(String calendarUrl, Uint8List hash) async {
+  Future<Uint8List?> _submitToCalendar(
+      String calendarUrl, Uint8List hash) async {
     try {
       final url = Uri.parse('$calendarUrl/digest');
-      final response = await _httpClient.post(
-        url,
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'Accept': 'application/octet-stream',
-        },
-        body: hash,
-      ).timeout(const Duration(seconds: 10));
+      final response = await _httpClient
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Accept': 'application/octet-stream',
+            },
+            body: hash,
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         print('Submitting to remote calendar $calendarUrl');
@@ -115,7 +120,7 @@ class OpenTimestampsClient {
   }
 
   /// Upgrades a timestamp by checking calendar servers for Bitcoin attestations
-  /// 
+  ///
   /// Returns true if the timestamp was upgraded (new attestations added).
   Future<bool> upgrade(DetachedTimestampFile detached) async {
     var upgraded = false;
@@ -157,11 +162,13 @@ class OpenTimestampsClient {
 
   /// Upgrades a single pending attestation
   Future<bool> _upgradeAttestation(_TimestampAttestation pending) async {
-    final url = Uri.parse('${pending.attestation.uri}/timestamp/${_toHex(pending.timestamp.msg)}');
-    
+    final url = Uri.parse(
+        '${pending.attestation.uri}/timestamp/${_toHex(pending.timestamp.msg)}');
+
     try {
-      final response = await _httpClient.get(url).timeout(const Duration(seconds: 10));
-      
+      final response =
+          await _httpClient.get(url).timeout(const Duration(seconds: 10));
+
       if (response.statusCode == 200) {
         // Parse the response and add new operations/attestations
         // This would require parsing the calendar's merkle tree response

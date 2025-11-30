@@ -19,7 +19,7 @@ abstract class Attestation {
 }
 
 /// Pending attestation waiting for calendar server response
-/// 
+///
 /// This represents a timestamp that has been submitted to a calendar
 /// server but not yet included in a Bitcoin block.
 class PendingAttestation extends Attestation {
@@ -58,7 +58,7 @@ class PendingAttestation extends Attestation {
 }
 
 /// Bitcoin block header attestation
-/// 
+///
 /// This proves that the timestamp was included in a specific Bitcoin block.
 /// The payload contains the block height.
 class BitcoinBlockHeaderAttestation extends Attestation {
@@ -80,10 +80,9 @@ class BitcoinBlockHeaderAttestation extends Attestation {
   @override
   Uint8List serialize() {
     final heightBytes = payload;
-    final result = Uint8List(1 + heightBytes.length);
-    result[0] = tag;
-    result.setRange(1, result.length, heightBytes);
-    return result;
+    // Format: tag + length_varint + payload
+    return Uint8List.fromList(
+        [tag, ..._encodeVarint(heightBytes.length), ...heightBytes]);
   }
 
   @override
@@ -98,7 +97,7 @@ class BitcoinBlockHeaderAttestation extends Attestation {
 }
 
 /// Unknown attestation type
-/// 
+///
 /// Used when parsing OTS files that contain attestation types
 /// not recognized by this implementation.
 class UnknownAttestation extends Attestation {

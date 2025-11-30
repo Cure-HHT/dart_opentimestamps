@@ -47,7 +47,7 @@ class OpSHA256 extends Operation {
 }
 
 /// Append data operation (tag: 0xf0)
-/// 
+///
 /// Appends data to the end of the message: message + data
 class OpAppend extends Operation {
   /// Creates an append operation
@@ -70,7 +70,7 @@ class OpAppend extends Operation {
   @override
   Uint8List serialize() {
     // Format: [tag, length_varint, data]
-    final length = _encodeVarint(data.length);
+    final length = encodeVarint(data.length);
     final result = Uint8List(1 + length.length + data.length);
     result[0] = tag;
     result.setRange(1, 1 + length.length, length);
@@ -90,7 +90,7 @@ class OpAppend extends Operation {
 }
 
 /// Prepend data operation (tag: 0xf1)
-/// 
+///
 /// Prepends data to the beginning of the message: data + message
 class OpPrepend extends Operation {
   /// Creates a prepend operation
@@ -113,7 +113,7 @@ class OpPrepend extends Operation {
   @override
   Uint8List serialize() {
     // Format: [tag, length_varint, data]
-    final length = _encodeVarint(data.length);
+    final length = encodeVarint(data.length);
     final result = Uint8List(1 + length.length + data.length);
     result[0] = tag;
     result.setRange(1, 1 + length.length, length);
@@ -133,7 +133,7 @@ class OpPrepend extends Operation {
 }
 
 /// RIPEMD160 hash operation (tag: 0x03)
-/// 
+///
 /// Note: RIPEMD160 support is optional for basic OTS functionality
 class OpRIPEMD160 extends Operation {
   /// Creates a RIPEMD160 operation
@@ -163,8 +163,10 @@ class OpRIPEMD160 extends Operation {
 
 // Helper functions
 
-/// Encodes an integer as a varint (variable-length integer)
-Uint8List _encodeVarint(int value) {
+/// Encodes an integer as a varint (variable-length integer).
+///
+/// Throws [ArgumentError] if [value] is negative.
+Uint8List encodeVarint(int value) {
   if (value < 0) {
     throw ArgumentError('Varint must be non-negative');
   }
@@ -197,11 +199,11 @@ Uint8List _encodeVarint(int value) {
     shift += 7;
 
     if (shift >= 64) {
-      throw FormatException('Varint too large');
+      throw const FormatException('Varint too large');
     }
   }
 
-  throw FormatException('Incomplete varint');
+  throw const FormatException('Incomplete varint');
 }
 
 bool _bytesEqual(Uint8List a, Uint8List b) {

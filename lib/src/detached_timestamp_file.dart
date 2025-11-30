@@ -9,7 +9,7 @@ import 'core/timestamp.dart';
 import 'deserialization/stream_deserialization_context.dart';
 
 /// A file with a detached timestamp
-/// 
+///
 /// This represents a timestamp for a file where the file itself is separate
 /// from the timestamp proof.
 class DetachedTimestampFile {
@@ -44,7 +44,7 @@ class DetachedTimestampFile {
     ctx.assertMagic([0x00]);
     ctx.assertMagic('Proof'.codeUnits);
     ctx.assertMagic([0x00]);
-    
+
     // Read version
     ctx.assertMagic([0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94]);
 
@@ -183,11 +183,10 @@ class DetachedTimestampFile {
   /// Returns information about this timestamp
   String info() {
     final buffer = StringBuffer();
-    final hashHex = fileHash
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    final hashHex =
+        fileHash.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
-    buffer.writeln('File ${fileHashOp.toString()} hash: $hashHex');
+    buffer.writeln('File $fileHashOp hash: $hashHex');
     buffer.writeln('Timestamp:');
     buffer.write(timestamp.strTree(indent: 1));
 
