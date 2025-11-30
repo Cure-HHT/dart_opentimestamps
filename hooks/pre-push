@@ -1,0 +1,23 @@
+#!/bin/bash
+# Pre-push hook: Run tests
+
+set -e
+
+echo "Running pre-push checks..."
+
+# Check if test script exists
+if [ ! -f "tool/test.sh" ]; then
+  echo "⚠️  tool/test.sh not found, skipping tests"
+  exit 0
+fi
+
+echo "Running tests..."
+./tool/test.sh
+
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed. Please fix failing tests before pushing."
+  exit 1
+fi
+
+echo "✅ All tests passed!"
+exit 0
