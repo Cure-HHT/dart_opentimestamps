@@ -2,6 +2,15 @@
 
 This directory contains git hooks to maintain code quality.
 
+## Prerequisites
+
+The hooks require `dart` to be available in your PATH. If you installed Flutter/Dart, make sure it's in your shell's PATH:
+
+```bash
+# Add to your ~/.bashrc, ~/.zshrc, or equivalent
+export PATH="$PATH:/path/to/flutter/bin"
+```
+
 ## Available Hooks
 
 ### pre-commit
