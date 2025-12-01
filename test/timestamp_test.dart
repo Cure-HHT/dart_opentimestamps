@@ -14,7 +14,7 @@
 
 import 'dart:typed_data';
 
-import 'package:dart_opentimestamps/open_timestamps.dart';
+import 'package:dart_opentimestamps/dart_opentimestamps.dart';
 import 'package:test/test.dart';
 
 void main() {

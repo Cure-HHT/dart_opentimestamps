@@ -81,7 +81,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  open_timestamps: ^0.1.0
+  dart_opentimestamps: ^0.9.0
 ```
 
 ### Basic Usage
@@ -89,7 +89,7 @@ dependencies:
 ```dart
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:open_timestamps/open_timestamps.dart';
+import 'package:dart_opentimestamps/dart_opentimestamps.dart';
 
 // Create a timestamp from your data
 final message = 'Important document content';

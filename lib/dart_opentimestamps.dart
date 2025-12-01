@@ -15,7 +15,7 @@
 /// OpenTimestamps Dart implementation
 ///
 /// Provides blockchain timestamping using the OpenTimestamps protocol.
-library open_timestamps;
+library dart_opentimestamps;
 
 export 'src/client/opentimestamps_client.dart';
 export 'src/core/attestation.dart';
