@@ -1,0 +1,27 @@
+# Validate PR Title — emits a check named exactly "Validate PR Title"
+# to satisfy the org-level branch-protection ruleset's required context.
+#
+# Logic lives in the shared composite action at
+# Cure-HHT/hht_workflows/.github/actions/validate-pr-title. This workflow
+# is just the trigger + job-name binding.
+
+name: Validate PR Title
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: validate-pr-title-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: Cure-HHT/hht_workflows/.github/actions/validate-pr-title@fb47aaf8dc2c55cd49adab6aaad3ced039709276  # v1.6.1
