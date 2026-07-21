@@ -1,0 +1,53 @@
+# confidential-terms-scan — emits a check named exactly
+# "confidential-terms-scan" so it's discoverable by the Validation Summary
+# aggregate and satisfiable by a Phase 6 ruleset requiring the bare id.
+#
+# Logic lives in the shared composite action at
+# Cure-HHT/hht_workflows/.github/actions/confidential-terms-scan. This
+# workflow is just the trigger + job-name binding + fork guard. CI-side
+# counterpart to the local confidential-terms-scan hook already configured
+# in .pre-commit-config.yaml (rev: v1.6.0).
+#
+# Implements: HHT-OPS-confidential-keywords-scrubbing/H,I
+
+name: confidential-terms-scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: confidential-terms-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  confidential-terms-scan:
+    # D7: public repo, so fork PRs are the expected contribution path and
+    # cannot mint the Doppler OIDC token. Skip (not fail) on fork PRs —
+    # skipped is accepted by both validation-summary and a required-check
+    # rule, unlike an OIDC error. The push trigger to main carries no
+    # `pull_request` context, so it is unaffected by this guard and still
+    # runs, which is what lets the required check resolve on the default
+    # branch.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write   # Doppler OIDC
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the scan diffs merge-base..head
+
+      - uses: Cure-HHT/hht_workflows/.github/actions/confidential-terms-scan@f17bd950a6aa3e3b10dd4737ea3008ac27bba396  # v1.6.0
+        with:
+          doppler_identity_id: ${{ vars.CONFIDENTIAL_SCAN_DOPPLER_IDENTITY_ID }}
+          doppler_project: scan-dart-opentimestamps
+          # push events carry no pull_request context, so the action's PR
+          # defaults are empty; fall back to the push before/after SHAs.
+          base_ref: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head_ref: ${{ github.event.pull_request.head.sha || github.sha }}
