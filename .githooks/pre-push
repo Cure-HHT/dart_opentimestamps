@@ -1,0 +1,13 @@
+#!/bin/sh
+# Hook wrapper: invokes pre-commit framework's pre-push stage. Receives
+# remote-name and remote-url as $1 $2; ref pairs come on stdin per the
+# git pre-push protocol — pre-commit handles the protocol parsing.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# Defense against manual invocation from a subdirectory so the
+# relative --config path always resolves.
+cd "$(git rev-parse --show-toplevel)"
+exec pre-commit hook-impl \
+  --config=.pre-commit-config.yaml \
+  --hook-type=pre-push \
+  --hook-dir "$HERE" \
+  -- "$@"

@@ -1,0 +1,49 @@
+# Pre-commit hooks for Cure-HHT/dart_opentimestamps.
+#
+# Minimal set: universal hygiene, secret scanning, and the confidential-
+# terms guard (HHT-OPS-confidential-keywords-scrubbing/H). Deliberately
+# excludes a dart-format hook: this package's existing source has an
+# unformatted backlog, and reformatting library source is out of scope
+# for this change (see CUR-1751 commit message).
+#
+# Setup:
+#   scripts/setup.sh      # configures core.hooksPath and warms cache
+#
+# Manual run:
+#   pre-commit run --all-files
+
+default_stages: [pre-commit]
+
+repos:
+  # Universal hygiene — formatting + obvious-foot-gun guards.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  # Secret scanning — same gitleaks version pinned across Cure-HHT repos.
+  # Runs at both pre-commit (catch secrets while editing) and pre-push
+  # (last line of defence before they reach the remote).
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.29.0
+    hooks:
+      - id: gitleaks
+        stages: [pre-commit, pre-push]
+
+  # Confidential-terms guard — fetches CONFIDENTIAL_PROHIBIT_LIST at scan
+  # time from the admin-owned scan-dart-opentimestamps Doppler project via
+  # OIDC and blocks matching terms from the outgoing push (added content,
+  # file/directory names, branch name). --on-fetch-error=warn: this repo
+  # has no local pre-push Doppler identity distinct from CI's yet, so a
+  # fetch failure warns rather than blocking every push.
+  # Implements: HHT-OPS-confidential-keywords-scrubbing/H,I
+  - repo: https://github.com/Cure-HHT/hht_workflows
+    rev: v1.6.0
+    hooks:
+      - id: confidential-terms-scan
+        args: [--doppler-project=scan-dart-opentimestamps, --on-fetch-error=warn]

@@ -1,0 +1,35 @@
+# Validation Summary — aggregates all other check runs into a single
+# required status named "Validation Summary", to satisfy the org-level
+# branch-protection ruleset's required context.
+#
+# Logic lives in the shared composite action at
+# Cure-HHT/hht_workflows/.github/actions/validation-summary. This workflow
+# is just the trigger + job-name binding.
+#
+# Trigger types must mirror the underlying check workflows so this
+# supervisor re-evaluates on every event that re-fires its workers.
+
+name: Validation Summary
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: validation-summary-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  checks: read
+  statuses: read
+  actions: read
+  pull-requests: write
+
+jobs:
+  gate:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: Cure-HHT/hht_workflows/.github/actions/validation-summary@fb47aaf8dc2c55cd49adab6aaad3ced039709276  # v1.6.1

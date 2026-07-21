@@ -12,7 +12,7 @@ A pure Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) 
 - ✅ **Complete OTS file format support** - Serialize and deserialize `.ots` timestamp proofs
 - ✅ **Cryptographic operations** - SHA-256, append, prepend operations
 - ✅ **Calendar client** - Submit timestamps to public OpenTimestamps calendars
-- ✅ **Bitcoin attestations** - Support for Bitcoin block header attestations  
+- ✅ **Bitcoin attestations** - Support for Bitcoin block header attestations
 - ✅ **Type-safe API** - Leverages Dart's strong typing for reliability
 - ✅ **Pure Dart** - Works on all Dart platforms (Flutter, Web, Server, CLI)
 - ✅ **100% Test Coverage** - Comprehensive test suite with round-trip verification
@@ -23,7 +23,7 @@ OpenTimestamps provides **trustless** timestamping using the Bitcoin blockchain:
 
 - **No trusted third party** - Unlike TSA (Time-Stamping Authority), you don't need to trust a certificate authority
 - **Quantum-resistant** - Hash functions remain secure against quantum computers
-- **Free** - Public calendar servers aggregate timestamps at no cost  
+- **Free** - Public calendar servers aggregate timestamps at no cost
 - **Permanent** - Proofs last as long as the Bitcoin blockchain exists
 - **Verifiable** - Anyone can independently verify timestamps
 
@@ -96,7 +96,7 @@ final message = 'Important document content';
 final messageBytes = Uint8List.fromList(utf8.encode(message));
 final detached = DetachedTimestampFile.fromBytes(messageBytes);
 
-// Submit to calendar servers  
+// Submit to calendar servers
 final client = OpenTimestampsClient();
 await client.stamp(detached);
 
@@ -151,7 +151,7 @@ Operations transform messages through the proof tree:
 final sha256 = const OpSHA256();
 final hashed = sha256.apply(message);
 
-// Binary operations  
+// Binary operations
 final appended = OpAppend(Uint8List.fromList([0x00, 0x01]));
 final prepended = OpPrepend(Uint8List.fromList([0xFF, 0xFE]));
 ```
@@ -197,7 +197,7 @@ Tests include:
 - **Resistant to Grover's algorithm** - Quadratic speedup doesn't break security
 - **No custom crypto** - Uses battle-tested `package:crypto`
 
-### Trust Model  
+### Trust Model
 
 OpenTimestamps requires NO trust in:
 - ❌ Calendar servers (they can't forge timestamps)
