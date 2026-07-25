@@ -7,7 +7,7 @@
 # for this change (see CUR-1751 commit message).
 #
 # Setup:
-#   scripts/setup.sh      # configures core.hooksPath and warms cache
+#   tools/setup-repo.sh   # configures core.hooksPath and warms cache
 #
 # Manual run:
 #   pre-commit run --all-files
