@@ -23,9 +23,8 @@ permissions:
 jobs:
   bootstrap:
     name: Repo Bootstrap
-    # CUR-1780: pinned to a commit on the unmerged hht_workflows branch that
-    # carries the reusable workflow; re-pin to the released SHA once that PR merges.
-    uses: Cure-HHT/hht_workflows/.github/workflows/repo-bootstrap.yml@b6697550181ca664c64e5728cac1dd6d7637e24f
+    # SHA-pinned to hht_workflows v1.10.0.
+    uses: Cure-HHT/hht_workflows/.github/workflows/repo-bootstrap.yml@25149a680fa6d20bde708f72eafc5a267d032c44  # v1.10.0
     with:
       setup-cmd: tools/setup-repo.sh
       check-cmd: tools/setup-repo.sh --check
