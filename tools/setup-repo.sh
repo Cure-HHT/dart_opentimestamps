@@ -12,12 +12,30 @@
 # for any hook git already knows how to look up by name, so running both
 # installers leaves hooks/install.sh's copies dormant. Use this script;
 # hooks/ is left untouched by this change.
+#
+# --check verifies (without changing anything) whether this clone is
+# already set up, reporting via exit status: 0 if every check passes,
+# non-zero if any fails.
 
 set -e
 
-# Run from the repo root so `pre-commit install-hooks` finds
-# .pre-commit-config.yaml regardless of where the script was invoked.
+# Run from the repo root so both the checks and `pre-commit install-hooks`
+# find their targets regardless of where the script was invoked.
 cd "$(git rev-parse --show-toplevel)"
+
+if [ "${1:-}" = "--check" ]; then
+  status=0
+
+  hooks_path=$(git config --get core.hooksPath 2>/dev/null) || hooks_path=""
+  if [ "$hooks_path" = ".githooks" ]; then
+    echo "ok: core.hooksPath = .githooks"
+  else
+    echo "not set up: core.hooksPath is '${hooks_path:-<unset>}', expected .githooks" >&2
+    status=1
+  fi
+
+  exit "$status"
+fi
 
 if ! command -v pre-commit >/dev/null 2>&1; then
   cat >&2 <<'MSG'
@@ -30,7 +48,7 @@ Install via one of:
 
 Docs: https://pre-commit.com/#install
 
-After installation, re-run scripts/setup.sh
+After installation, re-run tools/setup-repo.sh
 MSG
   exit 1
 fi

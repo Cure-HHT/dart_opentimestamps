@@ -7,6 +7,21 @@ A pure Dart implementation of the [OpenTimestamps](https://opentimestamps.org/) 
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://cure-hht.github.io/dart_opentimestamps/)
 [![codecov](https://codecov.io/gh/Cure-HHT/dart_opentimestamps/branch/main/graph/badge.svg)](https://codecov.io/gh/Cure-HHT/dart_opentimestamps)
 
+## Start here
+
+After cloning, run once:
+
+```sh
+./tools/setup-repo.sh          # activate this clone's git hooks
+./tools/setup-repo.sh --check  # verify the clone is set up (reports via exit status)
+./tool/test.sh                 # run the tests
+```
+
+## Related repositories
+
+- `hht_workflows` — shared CI checks every repo runs
+- `hht_admin` — org infrastructure and the authoritative `HHT-OPS-*` spec
+
 ## Features
 
 - ✅ **Complete OTS file format support** - Serialize and deserialize `.ots` timestamp proofs
@@ -319,4 +334,3 @@ This is a joint creation of [Anspar Foundation](https://anspar.org) and [Mindful
 For questions or contributions, contact:
 - [mike.bushe@anspar.org](mailto:mike.bushe@anspar.org)
 - [michael@mindfulsoftware.com](mailto:michael@mindfulsoftware.com)
-

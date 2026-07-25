@@ -3,7 +3,7 @@
 # Configured via .pre-commit-config.yaml at the repo root. Tracked in
 # version control; activated for this clone via:
 #   git config core.hooksPath .githooks
-# (run scripts/setup.sh once per clone).
+# (run tools/setup-repo.sh once per clone).
 #
 # Not to be confused with hooks/pre-commit, which is unrelated Dart-tooling
 # library source (the pre-existing `hooks/install.sh` flow that copies to
