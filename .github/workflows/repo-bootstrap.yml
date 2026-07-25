@@ -1,0 +1,35 @@
+# Repo Bootstrap — calls the org-wide reusable fresh-clone check.
+#
+# No paths filter on pull_request: this becomes a required check (the hht_admin
+# ruleset), and a paths-filtered required check wedges any PR that touches no
+# matching file at "Expected" forever. The check is cheap (shallow checkout, no
+# full suite). The weekly run catches rot in the pinned external tooling.
+
+name: Repo Bootstrap
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: repo-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: Repo Bootstrap
+    # CUR-1780: pinned to the hht_workflows branch carrying the reusable
+    # workflow; re-pin to the released SHA once that PR merges.
+    uses: Cure-HHT/hht_workflows/.github/workflows/repo-bootstrap.yml@b6697550181ca664c64e5728cac1dd6d7637e24f
+    with:
+      setup-cmd: tools/setup-repo.sh
+      check-cmd: tools/setup-repo.sh --check
+      test-cmd: ./tool/test.sh
+      test-list-cmd: find test -name '*_test.dart'
+      entry-doc: README.md
+      runtime: dart
