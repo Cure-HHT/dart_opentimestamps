@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// OpenTimestamps Dart implementation
-///
-/// Provides blockchain timestamping using the OpenTimestamps protocol.
+/// Get a SHA-256 hash-chain head witnessed by Bitcoin via OpenTimestamps:
+/// stamp the 32-byte digest, upgrade the proof once a calendar has
+/// committed it to a block, and verify the stored proof offline.
 library dart_opentimestamps;
 
-export 'src/client/opentimestamps_client.dart';
-export 'src/core/attestation.dart';
-export 'src/core/operations.dart';
-export 'src/core/timestamp.dart';
-export 'src/deserialization/stream_deserialization_context.dart';
+export 'src/attestation.dart';
+export 'src/block_header_source.dart';
+export 'src/client.dart';
+export 'src/codec.dart' show hexDecode, hexEncode;
 export 'src/detached_timestamp_file.dart';
-export 'src/utils/exceptions.dart';
-export 'src/verification/verification_result.dart';
+export 'src/op.dart';
+export 'src/timestamp.dart';
+export 'src/verify.dart';

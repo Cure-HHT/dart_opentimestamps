@@ -12,201 +12,88 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Detached timestamp file
+/// The standard `.ots` proof file for one SHA-256 digest.
 library;
 
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
-import 'core/attestation.dart';
-import 'core/operations.dart';
-import 'core/timestamp.dart';
-import 'deserialization/stream_deserialization_context.dart';
 
-/// A file with a detached timestamp
-///
-/// This represents a timestamp for a file where the file itself is separate
-/// from the timestamp proof.
+import 'attestation.dart';
+import 'codec.dart';
+import 'op.dart';
+import 'timestamp.dart';
+
+final _magic = Uint8List.fromList([
+  0x00, 0x4f, 0x70, 0x65, 0x6e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, //
+  0x6d, 0x70, 0x73, 0x00, 0x00, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x00, 0xbf, //
+  0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94,
+]);
+const _majorVersion = 1;
+
+/// A timestamp proof over a 32-byte SHA-256 digest, in the `.ots` format
+/// every OpenTimestamps tool reads (`ots verify -d <hex> proof.ots`).
 class DetachedTimestampFile {
-  /// Creates a detached timestamp file
-  DetachedTimestampFile(this.fileHashOp, this.timestamp);
-
-  /// Creates a DetachedTimestampFile from file bytes
-  factory DetachedTimestampFile.fromBytes(Uint8List fileBytes) {
-    // Hash the file with SHA-256
-    final fileHash = sha256.convert(fileBytes);
-    final fileHashBytes = Uint8List.fromList(fileHash.bytes);
-
-    // Create timestamp with the file hash as the message
-    final timestamp = Timestamp(fileHashBytes);
-
-    return DetachedTimestampFile(const OpSHA256(), timestamp);
-  }
-
-  /// Creates a DetachedTimestampFile from a pre-computed hash
-  factory DetachedTimestampFile.fromHash(Uint8List hash) {
-    final timestamp = Timestamp(hash);
-    return DetachedTimestampFile(const OpSHA256(), timestamp);
-  }
-
-  /// Deserializes a DetachedTimestampFile from OTS file bytes
-  factory DetachedTimestampFile.deserialize(Uint8List otsBytes) {
-    final ctx = StreamDeserializationContext(otsBytes);
-
-    // Read and verify magic header
-    ctx.assertMagic([0x00]);
-    ctx.assertMagic('OpenTimestamps'.codeUnits);
-    ctx.assertMagic([0x00]);
-    ctx.assertMagic('Proof'.codeUnits);
-    ctx.assertMagic([0x00]);
-
-    // Read version
-    ctx.assertMagic([0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94]);
-
-    // Read file hash operation
-    final fileHashOpTag = ctx.readByte();
-    final fileHashOp = ctx.deserializeOperation(fileHashOpTag);
-
-    // Read file hash
-    final fileHashLength = ctx.readByte();
-    final fileHash = ctx.readBytes(fileHashLength);
-
-    // Create timestamp and deserialize the tree
-    final timestamp = Timestamp(fileHash);
-    _deserializeTimestamp(ctx, timestamp);
-
-    return DetachedTimestampFile(fileHashOp, timestamp);
-  }
-
-  /// Deserializes a timestamp tree from the stream
-  static void _deserializeTimestamp(
-    StreamDeserializationContext ctx,
-    Timestamp timestamp,
-  ) {
-    while (!ctx.isEOF) {
-      final tag = ctx.readByte();
-
-      if (tag == 0x00) {
-        // Attestation
-        final attestationTag = ctx.readByte();
-        final payload = ctx.readVarbytes(maxLength: 8192);
-
-        final attestation = _deserializeAttestation(attestationTag, payload);
-        timestamp.addAttestation(attestation);
-      } else if (tag == 0xff) {
-        // Fork point - multiple operations follow
-        // The next tag will be an operation, so we continue the loop
-        continue;
-      } else {
-        // Operation
-        final op = ctx.deserializeOperation(tag);
-        final newTimestamp = timestamp.add(op);
-        _deserializeTimestamp(ctx, newTimestamp);
-        return; // Operations create new branches
-      }
+  /// Creates a proof with no attestations yet for [digest].
+  DetachedTimestampFile(Uint8List digest) : timestamp = Timestamp(digest) {
+    if (digest.length != 32) {
+      throw ArgumentError.value(digest.length, 'digest', 'must be 32 bytes');
     }
   }
 
-  /// Deserializes an attestation from tag and payload
-  static Attestation _deserializeAttestation(int tag, Uint8List payload) {
-    switch (tag) {
-      case 0x83: // Pending attestation
-        final uri = String.fromCharCodes(payload);
-        return PendingAttestation(uri);
+  DetachedTimestampFile._(this.timestamp);
 
-      case 0x05: // Bitcoin block header
-        // Decode varint from payload
-        final ctx = StreamDeserializationContext(payload);
-        final height = ctx.readVarint();
-        return BitcoinBlockHeaderAttestation(height);
-
-      default:
-        return UnknownAttestation(tag, payload);
-    }
-  }
-
-  /// The hash operation used on the file
-  final Operation fileHashOp;
-
-  /// The timestamp proof tree
+  /// The proof tree, rooted at [digest].
   final Timestamp timestamp;
 
-  /// Returns the file hash
-  Uint8List get fileHash => timestamp.msg;
+  /// The SHA-256 digest this proof timestamps.
+  Uint8List get digest => timestamp.msg;
 
-  /// Serializes this timestamp to bytes (OTS file format)
+  /// Whether any path reaches a Bitcoin block header attestation.
+  bool get isComplete => bitcoinHeights.isNotEmpty;
+
+  /// Heights of every Bitcoin block the proof attests to.
+  Set<int> get bitcoinHeights => {
+        for (final (_, a) in timestamp.allAttestations())
+          if (a is BitcoinBlockHeaderAttestation) a.height,
+      };
+
+  /// Calendars still holding a pending promise for this proof.
+  Set<String> get pendingCalendars => {
+        for (final (_, a) in timestamp.allAttestations())
+          if (a is PendingAttestation) a.uri,
+      };
+
+  /// The `.ots` file bytes.
   Uint8List serialize() {
-    // OTS file format:
-    // - Magic bytes: 0x00 "OpenTimestamps" 0x00 "Proof" 0x00
-    // - File hash operation tag
-    // - File hash length + hash
-    // - Timestamp tree
-
-    final buffer = <int>[];
-
-    // Magic header
-    buffer.addAll([0x00]);
-    buffer.addAll('OpenTimestamps'.codeUnits);
-    buffer.addAll([0x00]);
-    buffer.addAll('Proof'.codeUnits);
-    buffer.addAll([0x00]);
-    buffer.addAll([0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94]); // Version
-
-    // File hash operation
-    buffer.add(fileHashOp.tag);
-
-    // File hash (length + data)
-    final hashBytes = fileHash;
-    buffer.add(hashBytes.length);
-    buffer.addAll(hashBytes);
-
-    // Timestamp tree
-    buffer.addAll(_serializeTimestamp(timestamp));
-
-    return Uint8List.fromList(buffer);
+    final w = ByteWriter()
+      ..write(_magic)
+      ..writeVaruint(_majorVersion)
+      ..writeByte(OpSHA256.tagByte)
+      ..write(digest);
+    timestamp.serialize(w);
+    return w.toBytes();
   }
 
-  List<int> _serializeTimestamp(Timestamp timestamp) {
-    final buffer = <int>[];
-
-    // Serialize attestations
-    for (final attestation in timestamp.attestations) {
-      buffer.add(0x00); // Attestation tag
-      buffer.addAll(attestation.serialize());
+  /// Parses `.ots` file bytes; throws [FormatException] if they are not a
+  /// well-formed SHA-256 proof.
+  static DetachedTimestampFile deserialize(Uint8List bytes) {
+    final r = ByteReader(bytes);
+    if (!bytesEqual(r.read(_magic.length), _magic)) {
+      throw const FormatException('Not an OpenTimestamps proof');
     }
-
-    // Serialize operations
-    final sortedOps = timestamp.ops.entries.toList()
-      ..sort((a, b) => a.key.tag.compareTo(b.key.tag));
-
-    for (final entry in sortedOps) {
-      final op = entry.key;
-      final childTimestamp = entry.value;
-
-      // Add fork point if multiple operations
-      if (timestamp.ops.length > 1 || timestamp.attestations.isNotEmpty) {
-        buffer.add(0xff); // Fork point
-      }
-
-      buffer.addAll(op.serialize());
-      buffer.addAll(_serializeTimestamp(childTimestamp));
+    final version = r.readVaruint();
+    if (version != _majorVersion) {
+      throw FormatException('Unsupported proof version $version');
     }
-
-    return buffer;
+    final hashOp = r.readByte();
+    if (hashOp != OpSHA256.tagByte) {
+      throw FormatException(
+        'Unsupported file hash op 0x${hashOp.toRadixString(16)}; '
+        'only SHA-256 is accepted',
+      );
+    }
+    final digest = r.read(32);
+    final timestamp = Timestamp.deserialize(r, digest);
+    r.assertEnd();
+    return DetachedTimestampFile._(timestamp);
   }
-
-  /// Returns information about this timestamp
-  String info() {
-    final buffer = StringBuffer();
-    final hashHex =
-        fileHash.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-
-    buffer.writeln('File $fileHashOp hash: $hashHex');
-    buffer.writeln('Timestamp:');
-    buffer.write(timestamp.strTree(indent: 1));
-
-    return buffer.toString();
-  }
-
-  @override
-  String toString() => info();
 }

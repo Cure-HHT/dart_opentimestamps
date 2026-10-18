@@ -1,282 +1,248 @@
-// Copyright 2025 Anspar Foundation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dart_opentimestamps/dart_opentimestamps.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
+import 'fixtures.dart';
+
+/// What a calendar answers for [commitment]: a path to its pending
+/// attestation, as public calendars return it.
+Uint8List calendarResponse(Uint8List commitment, String uri) {
+  final t = Timestamp(commitment);
+  t
+      .add(OpPrepend(Uint8List.fromList([0x57, 0xcf, 0xa5, 0xc4])))
+      .add(OpAppend(Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8])))
+      .attestations
+      .add(PendingAttestation(uri));
+  return t.toBytes();
+}
+
 void main() {
-  group('OpenTimestampsClient', () {
-    group('constructor', () {
-      test('uses default calendar URLs when none provided', () {
-        final client = OpenTimestampsClient();
+  final digest = digestOf(0xab);
 
-        expect(client.calendarUrls.length, equals(3));
-        expect(client.calendarUrls,
-            contains('https://alice.btc.calendar.opentimestamps.org'));
-        expect(client.calendarUrls,
-            contains('https://bob.btc.calendar.opentimestamps.org'));
-        expect(client.calendarUrls,
-            contains('https://finney.calendar.eternitywall.com'));
+  group('stamp', () {
+    late List<http.Request> requests;
 
-        client.close();
+    OpenTimestampsClient clientWith(
+      Future<http.Response> Function(http.Request) handler, {
+      int minimumCalendars = 2,
+    }) {
+      requests = [];
+      return OpenTimestampsClient(
+        httpClient: MockClient((r) {
+          requests.add(r);
+          return handler(r);
+        }),
+        minimumCalendars: minimumCalendars,
+        random: Random(1),
+        timeout: const Duration(milliseconds: 200),
+      );
+    }
+
+    Future<http.Response> ok(http.Request r) async => http.Response.bytes(
+          calendarResponse(r.bodyBytes, 'https://${r.url.host}'),
+          200,
+        );
+
+    test('submits a nonced commitment to every calendar and merges replies',
+        () async {
+      final proof = await clientWith(ok).stamp(digest);
+
+      expect(requests, hasLength(3));
+      expect(requests.map((r) => r.url.toString()), [
+        for (final c in OpenTimestampsClient.defaultCalendars) '$c/digest',
+      ]);
+      for (final r in requests) {
+        expect(r.method, 'POST');
+        expect(r.headers['Accept'], 'application/vnd.opentimestamps.v1');
+        expect(r.bodyBytes, hasLength(32));
+      }
+      // All calendars received the same commitment.
+      expect(requests.map((r) => r.bodyBytes.toString()).toSet(), hasLength(1));
+
+      final nonceOp = proof.timestamp.ops.keys.single as OpAppend;
+      expect(nonceOp.argument, hasLength(16));
+      expect(
+        requests.first.bodyBytes,
+        sha256.convert([...digest, ...nonceOp.argument]).bytes,
+      );
+      expect(proof.digest, digest);
+      expect(proof.pendingCalendars, {
+        'https://a.pool.opentimestamps.org',
+        'https://b.pool.opentimestamps.org',
+        'https://a.pool.eternitywall.com',
       });
 
-      test('accepts custom calendar URLs', () {
-        final customUrls = ['https://custom1.com', 'https://custom2.com'];
-        final client = OpenTimestampsClient(calendarUrls: customUrls);
-
-        expect(client.calendarUrls, equals(customUrls));
-
-        client.close();
-      });
-
-      test('accepts custom HTTP client', () {
-        final mockClient = MockClient((request) async {
-          return http.Response('', 200);
-        });
-
-        final client = OpenTimestampsClient(httpClient: mockClient);
-
-        expect(client.calendarUrls.length, equals(3));
-
-        client.close();
-      });
+      final reparsed = DetachedTimestampFile.deserialize(proof.serialize());
+      expect(reparsed.serialize(), proof.serialize());
     });
 
-    group('stamp', () {
-      test('submits to calendar servers and adds pending attestation',
-          () async {
-        final mockClient = MockClient((request) async {
-          expect(request.url.path, equals('/digest'));
-          expect(request.method, equals('POST'));
-          expect(request.headers['Content-Type'],
-              equals('application/octet-stream'));
-
-          // Return some response bytes
-          return http.Response.bytes(Uint8List.fromList([0x00]), 200);
-        });
-
-        final client = OpenTimestampsClient(
-          calendarUrls: ['https://test.calendar.com'],
-          httpClient: mockClient,
-        );
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        final result = await client.stamp(detached);
-
-        // Should have added attestations
-        final attestations = result.timestamp.getAllAttestations();
-        expect(attestations, isNotEmpty);
-
-        client.close();
-      });
-
-      test('throws when all calendar servers fail', () async {
-        final mockClient = MockClient((request) async {
-          return http.Response('Error', 500);
-        });
-
-        final client = OpenTimestampsClient(
-          calendarUrls: ['https://fail1.com', 'https://fail2.com'],
-          httpClient: mockClient,
-        );
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        expect(
-          () => client.stamp(detached),
-          throwsA(isA<OpenTimestampsException>()),
-        );
-
-        client.close();
-      });
-
-      test('succeeds if at least one calendar responds', () async {
-        var requestCount = 0;
-        final mockClient = MockClient((request) async {
-          requestCount++;
-          if (requestCount == 1) {
-            return http.Response('Error', 500);
-          }
-          return http.Response.bytes(Uint8List.fromList([0x00]), 200);
-        });
-
-        final client = OpenTimestampsClient(
-          calendarUrls: ['https://fail.com', 'https://success.com'],
-          httpClient: mockClient,
-        );
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        final result = await client.stamp(detached);
-
-        expect(result, isNotNull);
-        client.close();
-      });
-
-      test('handles network exceptions gracefully', () async {
-        final mockClient = MockClient((request) async {
-          throw Exception('Network error');
-        });
-
-        final client = OpenTimestampsClient(
-          calendarUrls: ['https://error.com'],
-          httpClient: mockClient,
-        );
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        expect(
-          () => client.stamp(detached),
-          throwsA(isA<OpenTimestampsException>()),
-        );
-
-        client.close();
-      });
+    test('the nonce hides the digest: two stamps submit different values',
+        () async {
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((r) async {
+          requests.add(r);
+          return ok(r);
+        }),
+      );
+      requests = [];
+      await client.stamp(digest);
+      await client.stamp(digest);
+      expect(requests.first.bodyBytes, isNot(requests.last.bodyBytes));
+      expect(requests.first.bodyBytes, isNot(digest));
     });
 
-    group('upgrade', () {
-      test('returns false when no pending attestations', () async {
-        final mockClient = MockClient((request) async {
-          return http.Response('', 200);
-        });
-
-        final client = OpenTimestampsClient(httpClient: mockClient);
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        final upgraded = await client.upgrade(detached);
-
-        expect(upgraded, isFalse);
-
-        client.close();
-      });
-
-      test('attempts to upgrade pending attestations', () async {
-        final requestUrls = <String>[];
-        final mockClient = MockClient((request) async {
-          requestUrls.add(request.url.toString());
-          return http.Response('', 404); // Not ready yet
-        });
-
-        final client = OpenTimestampsClient(httpClient: mockClient);
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        // Add a pending attestation
-        detached.timestamp.addAttestation(
-          const PendingAttestation('https://calendar.test'),
-        );
-
-        final upgraded = await client.upgrade(detached);
-
-        expect(upgraded, isFalse);
-        expect(requestUrls, isNotEmpty);
-        expect(requestUrls.first, contains('calendar.test'));
-        expect(requestUrls.first, contains('/timestamp/'));
-
-        client.close();
-      });
-
-      test('handles upgrade request failures gracefully', () async {
-        final mockClient = MockClient((request) async {
-          throw Exception('Connection refused');
-        });
-
-        final client = OpenTimestampsClient(httpClient: mockClient);
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-        detached.timestamp.addAttestation(
-          const PendingAttestation('https://failing.calendar'),
-        );
-
-        // Should not throw, just return false
-        final upgraded = await client.upgrade(detached);
-
-        expect(upgraded, isFalse);
-
-        client.close();
-      });
-
-      test('catches and logs errors from invalid attestation URIs', () async {
-        final mockClient = MockClient((request) async {
-          return http.Response('', 200);
-        });
-
-        final client = OpenTimestampsClient(httpClient: mockClient);
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        // Add an attestation with an invalid URI that will cause Uri.parse to fail
-        // when constructing the upgrade URL
-        detached.timestamp.addAttestation(
-          const PendingAttestation('http://[invalid'),
-        );
-
-        // Should not throw, just log error and return false
-        final upgraded = await client.upgrade(detached);
-
-        expect(upgraded, isFalse);
-
-        client.close();
-      });
-
-      test('finds pending attestations in nested timestamps', () async {
-        var requestCount = 0;
-        final mockClient = MockClient((request) async {
-          requestCount++;
-          return http.Response('', 200);
-        });
-
-        final client = OpenTimestampsClient(httpClient: mockClient);
-
-        final hash = Uint8List.fromList(List.generate(32, (i) => i));
-        final detached = DetachedTimestampFile.fromHash(hash);
-
-        // Add attestation to a nested timestamp
-        final child = detached.timestamp.add(const OpSHA256());
-        child.addAttestation(
-            const PendingAttestation('https://nested.calendar'));
-
-        await client.upgrade(detached);
-
-        expect(requestCount, equals(1));
-
-        client.close();
-      });
+    test('succeeds when the minimum number of calendars answer', () async {
+      final proof = await clientWith((r) => r.url.host.startsWith('b.')
+          ? Future.value(http.Response('down', 503))
+          : ok(r)).stamp(digest);
+      expect(proof.pendingCalendars, hasLength(2));
     });
 
-    group('close', () {
-      test('can be called multiple times without error', () {
-        final client = OpenTimestampsClient();
+    test('fails when fewer than the minimum answer', () async {
+      final client = clientWith((r) => r.url.host.startsWith('a.pool.o')
+          ? ok(r)
+          : Future.value(http.Response('down', 503)));
+      await expectLater(
+        client.stamp(digest),
+        throwsA(isA<CalendarException>()
+            .having((e) => e.message, 'message', contains('1 of 3'))),
+      );
+    });
 
-        client.close();
-        client.close(); // Should not throw
-      });
+    test('malformed replies, network errors and timeouts count as failures',
+        () async {
+      final client = clientWith((r) {
+        if (r.url.host.startsWith('a.pool.o')) {
+          return Future.value(http.Response.bytes([0xff], 200));
+        }
+        if (r.url.host.startsWith('b.')) {
+          throw http.ClientException('connection refused');
+        }
+        return Completer<http.Response>().future; // never answers
+      }, minimumCalendars: 1);
+      await expectLater(
+          client.stamp(digest), throwsA(isA<CalendarException>()));
+    });
+
+    test('rejects a digest that is not 32 bytes', () {
+      expect(() => clientWith(ok).stamp(Uint8List(31)), throwsArgumentError);
+    });
+
+    test('rejects an unsatisfiable minimum', () {
+      expect(
+          () => OpenTimestampsClient(minimumCalendars: 4), throwsArgumentError);
+      expect(
+          () => OpenTimestampsClient(minimumCalendars: 0), throwsArgumentError);
+    });
+  });
+
+  group('upgrade', () {
+    const calendar = 'https://alice.btc.calendar.opentimestamps.org';
+
+    test('asks the calendar for the pending commitment; 404 stays pending',
+        () async {
+      final proof =
+          DetachedTimestampFile.deserialize(fixture('incomplete.txt.ots'));
+      final before = proof.serialize();
+      final urls = <Uri>[];
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((r) async {
+          urls.add(r.url);
+          expect(r.method, 'GET');
+          expect(r.headers['Accept'], 'application/vnd.opentimestamps.v1');
+          return http.Response('Not found', 404);
+        }),
+      );
+      expect(await client.upgrade(proof), isFalse);
+      final pendingMsg = proof.timestamp
+          .nodes()
+          .firstWhere((n) => n.attestations.isNotEmpty)
+          .msg;
+      expect(urls.single.toString(),
+          '$calendar/timestamp/${hexEncode(pendingMsg)}');
+      expect(proof.serialize(), before);
+    });
+
+    test('merges a Bitcoin proof and drops the pending attestation', () async {
+      final proof =
+          DetachedTimestampFile.deserialize(fixture('incomplete.txt.ots'));
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((r) async {
+          final msg = hexDecode(r.url.pathSegments.last);
+          final t = Timestamp(msg);
+          t.add(const OpSHA256()).attestations.add(
+                const BitcoinBlockHeaderAttestation(800000),
+              );
+          return http.Response.bytes(t.toBytes(), 200);
+        }),
+      );
+      expect(await client.upgrade(proof), isTrue);
+      expect(proof.isComplete, isTrue);
+      expect(proof.bitcoinHeights, {800000});
+      expect(proof.pendingCalendars, isEmpty);
+      expect(DetachedTimestampFile.deserialize(proof.serialize()).serialize(),
+          proof.serialize());
+
+      // Complete proofs have nothing left to ask.
+      expect(await client.upgrade(proof), isFalse);
+    });
+
+    test('a reply without a Bitcoin attestation keeps the pending one',
+        () async {
+      final proof =
+          DetachedTimestampFile.deserialize(fixture('incomplete.txt.ots'));
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((r) async {
+          final t = Timestamp(hexDecode(r.url.pathSegments.last));
+          t
+              .add(const OpSHA256())
+              .attestations
+              .add(PendingAttestation(calendar));
+          return http.Response.bytes(t.toBytes(), 200);
+        }),
+      );
+      expect(await client.upgrade(proof), isTrue);
+      expect(proof.isComplete, isFalse);
+      expect(proof.pendingCalendars, {calendar});
+    });
+
+    test('network errors and malformed replies leave the proof unchanged',
+        () async {
+      for (final handler in <MockClientHandler>[
+        (_) => throw http.ClientException('offline'),
+        (_) async => http.Response.bytes([1, 2, 3], 200),
+      ]) {
+        final proof =
+            DetachedTimestampFile.deserialize(fixture('two-calendars.txt.ots'));
+        final before = proof.serialize();
+        final client = OpenTimestampsClient(httpClient: MockClient(handler));
+        expect(await client.upgrade(proof), isFalse);
+        expect(proof.serialize(), before);
+      }
+    });
+
+    test('never contacts a calendar outside upgradeHosts', () async {
+      final proof = DetachedTimestampFile(digest);
+      proof.timestamp.add(const OpSHA256()).attestations.addAll([
+        PendingAttestation('https://evil.example.com'),
+        PendingAttestation('http://alice.btc.calendar.opentimestamps.org'),
+        PendingAttestation('https://calendar.opentimestamps.org.evil.com'),
+      ]);
+      var calls = 0;
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((_) async {
+          calls++;
+          return http.Response('', 404);
+        }),
+      );
+      expect(await client.upgrade(proof), isFalse);
+      expect(calls, 0);
     });
   });
 }

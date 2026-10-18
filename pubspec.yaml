@@ -1,6 +1,6 @@
 name: dart_opentimestamps
-description: Dart implementation of the OpenTimestamps protocol for Bitcoin blockchain timestamping
-version: 0.9.0
+description: Get a SHA-256 hash-chain head witnessed by Bitcoin through OpenTimestamps calendars, and verify the proof offline.
+version: 0.10.0
 repository: https://github.com/Cure-HHT/dart_opentimestamps.git
 issue_tracker: https://github.com/Cure-HHT/dart_opentimestamps/issues
 
@@ -10,12 +10,12 @@ environment:
 dependencies:
   crypto: ^3.0.3
   http: ^1.2.0
-  meta: ^1.16.0
+
+executables:
+  ots_verify:
 
 dev_dependencies:
-  build_runner: ^2.4.0
   lints: ^4.0.0
-  mockito: ^5.4.4
   test: ^1.25.0
 
 topics:
