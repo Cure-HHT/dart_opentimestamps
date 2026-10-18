@@ -204,6 +204,23 @@ void main() {
   });
 
   group('merge', () {
+    test('a fork repeating an op keeps both subtrees', () {
+      final msg = digestOf(7);
+      Uint8List branch(Attestation a) {
+        final t = Timestamp(msg);
+        t.add(const OpSHA256()).attestations.add(a);
+        return t.toBytes();
+      }
+
+      final pending = PendingAttestation('https://a.example.org');
+      const bitcoin = BitcoinBlockHeaderAttestation(1);
+      final bytes =
+          Uint8List.fromList([0xff, ...branch(pending), ...branch(bitcoin)]);
+      final t = Timestamp.fromBytes(bytes, msg);
+      expect(t.ops.keys.single, const OpSHA256());
+      expect(t.ops.values.single.attestations, {pending, bitcoin});
+    });
+
     test('unions attestations and paths', () {
       final a = Timestamp(digestOf(1));
       a.add(const OpSHA256()).attestations.add(PendingAttestation('https://a'));
@@ -220,6 +237,14 @@ void main() {
       expect(() => Timestamp(digestOf(1)).merge(Timestamp(digestOf(2))),
           throwsArgumentError);
     });
+  });
+
+  test('a binary op with an empty argument cannot be serialized', () {
+    for (final op in [OpAppend(Uint8List(0)), OpPrepend(Uint8List(0))]) {
+      final t = Timestamp(digestOf(1));
+      t.add(op).attestations.add(const BitcoinBlockHeaderAttestation(1));
+      expect(t.toBytes, throwsArgumentError);
+    }
   });
 
   test('ops compute sha256, append and prepend', () {

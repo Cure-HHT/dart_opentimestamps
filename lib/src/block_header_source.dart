@@ -16,12 +16,17 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'bounded_http.dart';
 import 'codec.dart';
 import 'verify.dart';
+
+/// Explorer replies are a block hash or an 80-byte header in hex.
+const _maxResponseLength = 1000;
 
 /// Thrown when a block header cannot be obtained or sources disagree.
 class BlockHeaderException implements Exception {
@@ -55,8 +60,15 @@ class ExplorerBlockHeaderSource implements BlockHeaderSource {
     this.timeout = const Duration(seconds: 10),
   })  : _http = httpClient ?? http.Client(),
         _ownsHttp = httpClient == null {
-    if (explorers.length < 2) {
-      throw ArgumentError.value(explorers, 'explorers', 'need at least two');
+    final hosts = {
+      for (final e in explorers) Uri.parse(e).host.toLowerCase(),
+    };
+    if (hosts.length < 2) {
+      throw ArgumentError.value(
+        explorers,
+        'explorers',
+        'need at least two distinct hosts',
+      );
     }
   }
 
@@ -105,11 +117,16 @@ class ExplorerBlockHeaderSource implements BlockHeaderSource {
   }
 
   Future<String> _get(String url) async {
-    final response = await _http.get(Uri.parse(url)).timeout(timeout);
+    final response = await sendBounded(
+      _http,
+      http.Request('GET', Uri.parse(url)),
+      maxBytes: _maxResponseLength,
+      timeout: timeout,
+    );
     if (response.statusCode != 200) {
       throw BlockHeaderException('$url: HTTP ${response.statusCode}');
     }
-    return response.body;
+    return utf8.decode(response.body);
   }
 
   /// Closes the HTTP client if this source created it.

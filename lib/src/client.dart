@@ -22,6 +22,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import 'attestation.dart';
+import 'bounded_http.dart';
 import 'codec.dart';
 import 'detached_timestamp_file.dart';
 import 'op.dart';
@@ -113,8 +114,12 @@ class OpenTimestampsClient {
           const OpSHA256(),
         );
 
+    // The commitment sits two ops below the root (append nonce, sha256),
+    // so a reply may use only the depth left beneath it.
     final responses = await Future.wait(
-      calendars.map((url) => _submit(url, commitment.msg)),
+      calendars.map(
+        (url) => _submit(url, commitment.msg, Timestamp.recursionLimit - 2),
+      ),
     );
     final failures = <String>[];
     for (var i = 0; i < calendars.length; i++) {
@@ -136,13 +141,14 @@ class OpenTimestampsClient {
   }
 
   /// Returns the parsed [Timestamp] or a failure description.
-  Future<Object> _submit(String calendar, Uint8List msg) async {
+  Future<Object> _submit(String calendar, Uint8List msg, int depth) async {
     try {
-      final response = await _http
-          .post(Uri.parse('$calendar/digest'), headers: _accept, body: msg)
-          .timeout(timeout);
+      final request = http.Request('POST', Uri.parse('$calendar/digest'))
+        ..headers.addAll(_accept)
+        ..bodyBytes = msg;
+      final response = await _send(request);
       if (response.statusCode != 200) return 'HTTP ${response.statusCode}';
-      final timestamp = _parse(response.bodyBytes, msg);
+      final timestamp = Timestamp.fromBytes(response.body, msg, depth: depth);
       // A reply that can never lead to Bitcoin is not an acceptance.
       if (!timestamp.allAttestations().any((e) =>
           e.$2 is PendingAttestation ||
@@ -164,11 +170,11 @@ class OpenTimestampsClient {
   Future<bool> upgrade(DetachedTimestampFile proof) async {
     var changed = false;
     final pending = [
-      for (final node in proof.timestamp.nodes())
+      for (final (node, depth) in proof.timestamp.nodesWithDepth())
         for (final a in node.attestations)
-          if (a is PendingAttestation) (node, a),
+          if (a is PendingAttestation) (node, depth, a),
     ];
-    for (final (node, attestation) in pending) {
+    for (final (node, depth, attestation) in pending) {
       // Already anchored beneath this node: nothing to ask the calendar.
       if (_hasBitcoinBelow(node)) {
         changed |= node.attestations.remove(attestation);
@@ -176,7 +182,10 @@ class OpenTimestampsClient {
       }
       final uri = Uri.tryParse(attestation.uri);
       if (uri == null || !_mayUpgradeFrom(uri)) continue;
-      final upgraded = await _fetch(uri, node.msg);
+      // The reply may use only the depth left beneath this node, so the
+      // merged proof stays readable.
+      final upgraded =
+          await _fetch(uri, node.msg, Timestamp.recursionLimit - depth);
       if (upgraded == null) continue;
       final before = node.toBytes();
       node.merge(upgraded);
@@ -190,29 +199,31 @@ class OpenTimestampsClient {
       uri.scheme == 'https' &&
       upgradeHosts.any((h) => uri.host == h || uri.host.endsWith('.$h'));
 
-  Future<Timestamp?> _fetch(Uri calendar, Uint8List msg) async {
+  Future<Timestamp?> _fetch(Uri calendar, Uint8List msg, int depth) async {
     try {
-      final response = await _http
-          .get(
-            calendar.replace(
-              path: '${calendar.path}/timestamp/${hexEncode(msg)}',
-            ),
-            headers: _accept,
-          )
-          .timeout(timeout);
+      final request = http.Request(
+        'GET',
+        calendar.replace(
+          path: '${calendar.path}/timestamp/${hexEncode(msg)}',
+        ),
+      )..headers.addAll(_accept);
+      final response = await _send(request);
       if (response.statusCode != 200) return null;
-      return _parse(response.bodyBytes, msg);
+      return Timestamp.fromBytes(response.body, msg, depth: depth);
     } on Object {
       return null;
     }
   }
 
-  Timestamp _parse(Uint8List body, Uint8List msg) {
-    if (body.length > _maxResponseLength) {
-      throw const FormatException('Calendar response too large');
-    }
-    return Timestamp.fromBytes(body, msg);
-  }
+  /// Sends [request] without following redirects, so a calendar cannot
+  /// send the client to a host outside [upgradeHosts] or to plain HTTP,
+  /// and with the body bounded while it is read.
+  Future<BoundedResponse> _send(http.BaseRequest request) => sendBounded(
+        _http,
+        request,
+        maxBytes: _maxResponseLength,
+        timeout: timeout,
+      );
 
   static bool _hasBitcoinBelow(Timestamp node) => node.ops.values.any(
         (child) => child

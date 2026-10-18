@@ -21,11 +21,12 @@ import 'attestation.dart';
 import 'codec.dart';
 import 'op.dart';
 
-const _recursionLimit = 256;
-
 /// A node of a proof tree: a message, the attestations made directly on
 /// it, and the ops leading from it to child nodes.
 class Timestamp {
+  /// How many nested nodes a proof may hold, root included.
+  static const recursionLimit = 256;
+
   /// Creates an empty node for [msg].
   Timestamp(Uint8List msg) : msg = Uint8List.fromList(msg) {
     if (msg.length > maxMessageLength) {
@@ -73,6 +74,14 @@ class Timestamp {
     }
   }
 
+  /// Every node in the tree with its depth (this node is depth 0).
+  Iterable<(Timestamp, int)> nodesWithDepth([int depth = 0]) sync* {
+    yield (this, depth);
+    for (final child in ops.values) {
+      yield* child.nodesWithDepth(depth + 1);
+    }
+  }
+
   /// Writes the tree in canonical order.
   void serialize(ByteWriter w) {
     final atts = attestations.toList()..sort();
@@ -102,8 +111,14 @@ class Timestamp {
   }
 
   /// Reads a tree whose root message is [msg].
-  static Timestamp deserialize(ByteReader r, Uint8List msg) =>
-      _deserialize(r, msg, _recursionLimit);
+  ///
+  /// [depth] is how many nested nodes the tree may hold, root included.
+  static Timestamp deserialize(
+    ByteReader r,
+    Uint8List msg, {
+    int depth = recursionLimit,
+  }) =>
+      _deserialize(r, msg, depth);
 
   static Timestamp _deserialize(ByteReader r, Uint8List msg, int depth) {
     if (depth <= 0) throw const FormatException('Recursion limit exceeded');
@@ -113,7 +128,8 @@ class Timestamp {
         node.attestations.add(Attestation.deserialize(r));
       } else {
         final op = Op.deserialize(r, tag);
-        node.ops[op] = _deserialize(r, op(msg), depth - 1);
+        // A fork that repeats an op keeps both subtrees.
+        node.add(op).merge(_deserialize(r, op(msg), depth - 1));
       }
     }
 
@@ -126,10 +142,15 @@ class Timestamp {
     return node;
   }
 
-  /// Parses a calendar response: a tree rooted at the submitted [msg].
-  static Timestamp fromBytes(Uint8List bytes, Uint8List msg) {
+  /// Parses a calendar response: a tree rooted at the submitted [msg],
+  /// holding at most [depth] nested nodes.
+  static Timestamp fromBytes(
+    Uint8List bytes,
+    Uint8List msg, {
+    int depth = recursionLimit,
+  }) {
     final r = ByteReader(bytes);
-    final t = deserialize(r, msg);
+    final t = deserialize(r, msg, depth: depth);
     r.assertEnd();
     return t;
   }

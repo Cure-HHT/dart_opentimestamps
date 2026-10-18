@@ -25,6 +25,13 @@ Bitcoin, upgrading the proof, and verifying it offline. Breaking.
   without asking the calendar again.
 - A calendar reply carrying no pending or Bitcoin attestation no longer
   counts towards `minimumCalendars`.
+- Calendar and explorer requests never follow redirects, read at most a
+  bounded body, and cancel the download on overflow or timeout.
+- A calendar reply may use only the nesting depth left below the node it
+  attaches to, so a stamped or upgraded proof always reads back.
+- A proof that repeats an op in a fork keeps both subtrees.
+- A binary op with an empty argument is refused at serialization.
+- `ExplorerBlockHeaderSource` requires two distinct explorer hosts.
 
 ### Added
 - `verifyTimestamp`: offline verification against 80-byte block headers

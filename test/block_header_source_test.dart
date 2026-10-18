@@ -65,10 +65,35 @@ void main() {
     );
   });
 
-  test('requires at least two explorers', () {
+  test('requires at least two explorers on distinct hosts', () {
     expect(
       () => ExplorerBlockHeaderSource(explorers: ['https://x']),
       throwsArgumentError,
     );
+    expect(
+      () => ExplorerBlockHeaderSource(explorers: [
+        'https://blockstream.info/api',
+        'https://BLOCKSTREAM.info/api/',
+      ]),
+      throwsArgumentError,
+    );
+  });
+
+  test('does not follow redirects and rejects an oversized reply', () async {
+    final follows = <bool>[];
+    final source = ExplorerBlockHeaderSource(
+      httpClient: MockClient((r) async {
+        follows.add(r.followRedirects);
+        return r.url.host == 'mempool.space'
+            ? http.Response('', 302, headers: {'location': 'http://x/'})
+            : http.Response('0' * 5000, 200);
+      }),
+    );
+    await expectLater(
+      source.headerAt(358391),
+      throwsA(isA<BlockHeaderException>()),
+    );
+    expect(follows, everyElement(isFalse));
+    expect(follows, isNotEmpty);
   });
 }

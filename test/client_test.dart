@@ -202,6 +202,82 @@ void main() {
       );
     });
 
+    test('does not follow a redirect; a 3xx reply is a failure', () async {
+      final follows = <bool>[];
+      final client = clientWith((r) async {
+        follows.add(r.followRedirects);
+        return http.Response('', 302,
+            headers: {'location': 'http://evil.example.com/digest'});
+      }, minimumCalendars: 1);
+      await expectLater(
+          client.stamp(digest), throwsA(isA<CalendarException>()));
+      expect(follows, [false, false, false]);
+    });
+
+    test('an oversized or stalled reply is cut off and its download cancelled',
+        () async {
+      var cancelled = 0;
+      final client = OpenTimestampsClient(
+        httpClient: MockClient.streaming((r, _) async {
+          final controller = StreamController<List<int>>(
+            onCancel: () => cancelled++,
+          );
+          if (r.url.host == 'a.pool.opentimestamps.org') {
+            // Endless body: far past the response bound.
+            Timer.periodic(const Duration(milliseconds: 1), (t) {
+              if (controller.isClosed || cancelled > 0 && t.tick > 50) {
+                t.cancel();
+                return;
+              }
+              if (controller.hasListener) controller.add(Uint8List(4096));
+            });
+          } else {
+            // Starts, then never finishes.
+            controller.add([0x00]);
+          }
+          return http.StreamedResponse(controller.stream, 200);
+        }),
+        minimumCalendars: 1,
+        random: Random(1),
+        timeout: const Duration(milliseconds: 200),
+      );
+      await expectLater(
+          client.stamp(digest), throwsA(isA<CalendarException>()));
+      expect(cancelled, 3);
+    });
+
+    test('a reply deeper than the depth left below the commitment is refused',
+        () async {
+      // The commitment is the root's grandchild, so a reply may add at
+      // most 253 ops before the proof would exceed 256 nested nodes.
+      Uint8List chain(int ops) => Uint8List.fromList([
+            ...List.filled(ops, 0x08),
+            ...hexDecode('00${'83dfe30d2ef90c8e'}'),
+            ...(() {
+              final uri = 'https://a.pool.opentimestamps.org'.codeUnits;
+              return [uri.length + 1, uri.length, ...uri];
+            })(),
+          ]);
+
+      OpenTimestampsClient replying(int ops) => OpenTimestampsClient(
+            httpClient: MockClient((_) async => http.Response.bytes(
+                  chain(ops),
+                  200,
+                )),
+            calendars: const ['https://a.pool.opentimestamps.org'],
+            minimumCalendars: 1,
+            random: Random(1),
+          );
+
+      final proof = await replying(253).stamp(digest);
+      expect(
+        DetachedTimestampFile.deserialize(proof.serialize()).serialize(),
+        proof.serialize(),
+      );
+      await expectLater(
+          replying(254).stamp(digest), throwsA(isA<CalendarException>()));
+    });
+
     test('rejects a digest that is not 32 bytes', () {
       expect(() => clientWith(ok).stamp(Uint8List(31)), throwsArgumentError);
     });
@@ -339,6 +415,28 @@ void main() {
         expect(await client.upgrade(proof), isFalse);
         expect(proof.serialize(), before);
       }
+    });
+
+    test('an upgrade deeper than the depth left below the node is refused',
+        () async {
+      final proof = DetachedTimestampFile(digest);
+      final node = proof.timestamp.add(const OpSHA256());
+      node.attestations.add(PendingAttestation(calendar));
+      final before = proof.serialize();
+      // The pending node is the root's child: a reply may add at most 254
+      // ops; this one adds 255.
+      final reply = Uint8List.fromList(
+          [...List.filled(255, 0x08), ...hexDecode('000588960d73d719010101')]);
+      final follows = <bool>[];
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((r) async {
+          follows.add(r.followRedirects);
+          return http.Response.bytes(reply, 200);
+        }),
+      );
+      expect(await client.upgrade(proof), isFalse);
+      expect(follows, [false]);
+      expect(proof.serialize(), before);
     });
 
     test('never contacts a calendar outside upgradeHosts', () async {

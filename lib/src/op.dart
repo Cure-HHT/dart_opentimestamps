@@ -42,7 +42,13 @@ sealed class Op implements Comparable<Op> {
   Uint8List call(Uint8List msg);
 
   /// Writes the tag and, for binary ops, the argument.
+  ///
+  /// Throws [ArgumentError] for a binary op with an empty argument, which
+  /// the format cannot read back.
   void serialize(ByteWriter w) {
+    if (this is! OpSHA256 && argument.isEmpty) {
+      throw ArgumentError('$runtimeType needs a non-empty argument');
+    }
     w.writeByte(tag);
     if (this is! OpSHA256) w.writeVarbytes(argument);
   }
