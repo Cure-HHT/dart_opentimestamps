@@ -33,13 +33,17 @@ const _majorVersion = 1;
 /// every OpenTimestamps tool reads (`ots verify -d <hex> proof.ots`).
 class DetachedTimestampFile {
   /// Creates a proof with no attestations yet for [digest].
-  DetachedTimestampFile(Uint8List digest) : timestamp = Timestamp(digest) {
+  DetachedTimestampFile(Uint8List digest)
+      : timestamp = Timestamp(_checkDigest(digest));
+
+  DetachedTimestampFile._(this.timestamp);
+
+  static Uint8List _checkDigest(Uint8List digest) {
     if (digest.length != 32) {
       throw ArgumentError.value(digest.length, 'digest', 'must be 32 bytes');
     }
+    return digest;
   }
-
-  DetachedTimestampFile._(this.timestamp);
 
   /// The proof tree, rooted at [digest].
   final Timestamp timestamp;

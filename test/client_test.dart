@@ -130,6 +130,78 @@ void main() {
           client.stamp(digest), throwsA(isA<CalendarException>()));
     });
 
+    test('a captured-shape reply is merged at the nonced commitment', () async {
+      const alice = 'https://alice.btc.calendar.opentimestamps.org';
+      final aggregatorNonce = List.generate(16, (i) => 0xa0 + i);
+      final time = [0x65, 0x2f, 0x1a, 0x00];
+      final calendarNonce = [1, 2, 3, 4, 5, 6, 7, 8];
+      // Written out byte by byte, as a.pool.opentimestamps.org answers:
+      // append(nonce) sha256 prepend(time) append(nonce) pending(alice).
+      final reply = Uint8List.fromList([
+        0xf0, 0x10, ...aggregatorNonce, //
+        0x08,
+        0xf1, 0x04, ...time,
+        0xf0, 0x08, ...calendarNonce,
+        0x00, ...PendingAttestation.tagBytes,
+        alice.length + 1, alice.length, ...alice.codeUnits,
+      ]);
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((r) async {
+          requests.add(r);
+          return http.Response.bytes(reply, 200);
+        }),
+        calendars: const ['https://a.pool.opentimestamps.org'],
+        minimumCalendars: 1,
+      );
+      requests = [];
+      final proof = await client.stamp(digest);
+
+      final nonceOp = proof.timestamp.ops.keys.single as OpAppend;
+      final commitment = proof.timestamp.ops[nonceOp]!.ops[const OpSHA256()]!;
+      expect(commitment.msg, requests.single.bodyBytes);
+      final pendingNode = commitment
+          .ops[OpAppend(Uint8List.fromList(aggregatorNonce))]!
+          .ops[const OpSHA256()]!
+          .ops[OpPrepend(Uint8List.fromList(time))]!
+          .ops[OpAppend(Uint8List.fromList(calendarNonce))]!;
+      expect(pendingNode.attestations, {PendingAttestation(alice)});
+      expect(
+        pendingNode.msg,
+        [
+          ...time,
+          ...sha256.convert([...commitment.msg, ...aggregatorNonce]).bytes,
+          ...calendarNonce,
+        ],
+      );
+      // The reply sits verbatim behind the file header and nonce step.
+      expect(
+        proof.serialize(),
+        [
+          ...hexDecode('004f70656e54696d657374616d7073000050726f6f6600bf89e2e8'
+              '84e89294'),
+          0x01, 0x08, ...digest, //
+          0xf0, 0x10, ...nonceOp.argument,
+          0x08, ...reply,
+        ],
+      );
+    });
+
+    test('a reply with no pending or Bitcoin attestation is not counted',
+        () async {
+      final unknownOnly = hexDecode('00' '0102030405060708' '00');
+      final client = clientWith(
+        (r) async => r.url.host.startsWith('a.pool.o')
+            ? http.Response.bytes(unknownOnly, 200)
+            : http.Response('down', 503),
+        minimumCalendars: 1,
+      );
+      await expectLater(
+        client.stamp(digest),
+        throwsA(isA<CalendarException>().having(
+            (e) => e.message, 'message', contains('no pending or Bitcoin'))),
+      );
+    });
+
     test('rejects a digest that is not 32 bytes', () {
       expect(() => clientWith(ok).stamp(Uint8List(31)), throwsArgumentError);
     });
@@ -191,6 +263,48 @@ void main() {
 
       // Complete proofs have nothing left to ask.
       expect(await client.upgrade(proof), isFalse);
+    });
+
+    test('a real Bitcoin path from the calendar verifies after upgrade',
+        () async {
+      final complete = fixture('hello-world-bitcoin-path.ots');
+      final head = DetachedTimestampFile.deserialize(complete).digest;
+      final proof = DetachedTimestampFile(head);
+      proof.timestamp.attestations.add(PendingAttestation(calendar));
+      final urls = <Uri>[];
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((r) async {
+          urls.add(r.url);
+          // What the calendar serves: the tree below the commitment.
+          return http.Response.bytes(complete.sublist(65), 200);
+        }),
+      );
+
+      expect(await client.upgrade(proof), isTrue);
+      expect(urls.single.toString(), '$calendar/timestamp/${hexEncode(head)}');
+      expect(proof.pendingCalendars, isEmpty);
+      expect(proof.serialize(), complete);
+      expect(
+        verifyTimestamp(proof.serialize(), head, {358391: block358391Header()}),
+        isA<VerificationValid>().having((r) => r.height, 'height', 358391),
+      );
+    });
+
+    test('a pending attestation already anchored below is dropped unasked',
+        () async {
+      final proof = DetachedTimestampFile.deserialize(
+          fixture('hello-world-bitcoin-path.ots'));
+      proof.timestamp.attestations.add(PendingAttestation(calendar));
+      var calls = 0;
+      final client = OpenTimestampsClient(
+        httpClient: MockClient((_) async {
+          calls++;
+          return http.Response('', 404);
+        }),
+      );
+      expect(await client.upgrade(proof), isTrue);
+      expect(calls, 0);
+      expect(proof.pendingCalendars, isEmpty);
     });
 
     test('a reply without a Bitcoin attestation keeps the pending one',

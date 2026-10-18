@@ -142,7 +142,14 @@ class OpenTimestampsClient {
           .post(Uri.parse('$calendar/digest'), headers: _accept, body: msg)
           .timeout(timeout);
       if (response.statusCode != 200) return 'HTTP ${response.statusCode}';
-      return _parse(response.bodyBytes, msg);
+      final timestamp = _parse(response.bodyBytes, msg);
+      // A reply that can never lead to Bitcoin is not an acceptance.
+      if (!timestamp.allAttestations().any((e) =>
+          e.$2 is PendingAttestation ||
+          e.$2 is BitcoinBlockHeaderAttestation)) {
+        return 'no pending or Bitcoin attestation in reply';
+      }
+      return timestamp;
     } on Object catch (e) {
       return e.toString();
     }
@@ -162,6 +169,11 @@ class OpenTimestampsClient {
           if (a is PendingAttestation) (node, a),
     ];
     for (final (node, attestation) in pending) {
+      // Already anchored beneath this node: nothing to ask the calendar.
+      if (_hasBitcoinBelow(node)) {
+        changed |= node.attestations.remove(attestation);
+        continue;
+      }
       final uri = Uri.tryParse(attestation.uri);
       if (uri == null || !_mayUpgradeFrom(uri)) continue;
       final upgraded = await _fetch(uri, node.msg);

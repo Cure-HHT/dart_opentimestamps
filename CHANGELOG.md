@@ -21,7 +21,10 @@ Bitcoin, upgrading the proof, and verifying it offline. Breaking.
   a bare pending attestation, and requires `minimumCalendars` (default 2)
   to answer.
 - `upgrade` fetches `{calendar}/timestamp/{commitment}` and merges the
-  reply; pending attestations are dropped once a Bitcoin one exists below.
+  reply; pending attestations are dropped once a Bitcoin one exists below,
+  without asking the calendar again.
+- A calendar reply carrying no pending or Bitcoin attestation no longer
+  counts towards `minimumCalendars`.
 
 ### Added
 - `verifyTimestamp`: offline verification against 80-byte block headers

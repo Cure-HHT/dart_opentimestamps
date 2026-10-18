@@ -96,6 +96,7 @@ void main() {
 
     test('requires a 32-byte digest', () {
       expect(() => DetachedTimestampFile(Uint8List(20)), throwsArgumentError);
+      expect(() => DetachedTimestampFile(Uint8List(5000)), throwsArgumentError);
     });
   });
 

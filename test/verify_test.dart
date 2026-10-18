@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dart_opentimestamps/dart_opentimestamps.dart';
@@ -90,6 +91,25 @@ void main() {
     ]) {
       expect(verifyTimestamp(bytes, digest, headers),
           invalidBecause('malformed proof'));
+    }
+  });
+
+  test('random corruption of real proofs never throws', () {
+    final random = Random(469);
+    final seeds = [
+      proof,
+      for (final n in ['incomplete', 'two-calendars', 'merkle1'])
+        fixture('$n.txt.ots'),
+    ];
+    for (var i = 0; i < 20000; i++) {
+      final bytes = Uint8List.fromList(seeds[i % seeds.length]);
+      for (var k = random.nextInt(4); k >= 0; k--) {
+        bytes[random.nextInt(bytes.length)] = random.nextInt(256);
+      }
+      final cut = random.nextInt(8) == 0 ? random.nextInt(bytes.length) : null;
+      final input = Uint8List.sublistView(bytes, 0, cut);
+      final result = verifyTimestamp(input, digest, headers);
+      if (result is VerificationValid) expect(input, proof);
     }
   });
 

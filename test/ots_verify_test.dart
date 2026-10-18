@@ -27,6 +27,16 @@ void main() {
     expect(r.exitCode, 1);
   });
 
+  test('exits 1 for the original RIPEMD-160 hello-world proof', () async {
+    final r = await _run([
+      'test/fixtures/hello-world.txt.ots',
+      '03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340',
+      header,
+    ]);
+    expect(r.exitCode, 1);
+    expect(r.stdout, contains('malformed proof'));
+  });
+
   test('exits 2 for a pending proof', () async {
     final pending = DetachedTimestampFile.deserialize(
       fixture('incomplete.txt.ots'),
